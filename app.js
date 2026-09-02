@@ -5,6 +5,7 @@ const state = {
   view: "all",
   onlyActionable: false,
   showIgnored: false,
+  autoReload: localStorage.getItem("hiro-pr-tracker-auto-reload") !== "false",
   loading: false,
   autoReloadTimer: null,
   viewer: localStorage.getItem("hiro-pr-tracker-viewer") || "Alex",
@@ -26,6 +27,7 @@ const els = {
   viewer: document.querySelector("#viewer"),
   actionable: document.querySelector("#only-actionable"),
   showIgnored: document.querySelector("#show-ignored"),
+  autoReload: document.querySelector("#auto-reload"),
   reload: document.querySelector("#refresh-data"),
   reloadStatus: document.querySelector("#reload-status"),
   loginForm: document.querySelector("#login-form"),
@@ -452,7 +454,7 @@ async function unlock(password) {
   await loadData(password);
   sessionStorage.setItem("hiro-pr-tracker-password", password);
   document.body.classList.remove("locked");
-  startAutoReload();
+  syncAutoReload();
 }
 
 function startAutoReload() {
@@ -467,7 +469,22 @@ function startAutoReload() {
   }, 60000);
 }
 
+function stopAutoReload() {
+  if (!state.autoReloadTimer) return;
+  window.clearInterval(state.autoReloadTimer);
+  state.autoReloadTimer = null;
+}
+
+function syncAutoReload() {
+  if (state.autoReload) {
+    startAutoReload();
+  } else {
+    stopAutoReload();
+  }
+}
+
 els.viewer.value = state.viewer;
+els.autoReload.checked = state.autoReload;
 
 els.search.addEventListener("input", (event) => {
   state.search = event.target.value.trim();
@@ -492,6 +509,12 @@ els.actionable.addEventListener("change", (event) => {
 els.showIgnored.addEventListener("change", (event) => {
   state.showIgnored = event.target.checked;
   render();
+});
+
+els.autoReload.addEventListener("change", (event) => {
+  state.autoReload = event.target.checked;
+  localStorage.setItem("hiro-pr-tracker-auto-reload", String(state.autoReload));
+  syncAutoReload();
 });
 
 els.reload.addEventListener("click", () => {
