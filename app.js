@@ -100,6 +100,13 @@ function activeComments(pr) {
   return pr.comments.filter((comment) => !isIgnored(itemKey("comment", comment.id)));
 }
 
+function activeUnresolvedComments(pr) {
+  const unresolvedComments = Array.isArray(pr.unresolvedComments)
+    ? pr.unresolvedComments
+    : pr.comments.filter((comment) => comment.unresolved);
+  return unresolvedComments.filter((comment) => !isIgnored(itemKey("comment", comment.id)));
+}
+
 function activeFailures(pr) {
   return pr.failures.filter((failure) => !isIgnored(failureKey(pr, failure)));
 }
@@ -114,6 +121,10 @@ function prIsIgnored(pr) {
 
 function activeCommentCount(pr) {
   return activeComments(pr).length;
+}
+
+function activeUnresolvedCommentCount(pr) {
+  return activeUnresolvedComments(pr).length;
 }
 
 function activeFailureCount(pr) {
@@ -166,7 +177,7 @@ function failureCopyText(failure) {
 
 function matchesPr(pr) {
   if (!state.showIgnored && prIsIgnored(pr)) return false;
-  if (state.onlyActionable && !activeCommentCount(pr) && !activeFailureCount(pr)) return false;
+  if (state.onlyActionable && !activeUnresolvedCommentCount(pr) && !activeFailureCount(pr)) return false;
   if (!state.search) return true;
   const haystack = [
     pr.number,
@@ -190,6 +201,7 @@ function renderSummary(prs) {
   const totals = {
     prs: prs.filter((pr) => state.showIgnored || !prIsIgnored(pr)).length,
     comments: prs.reduce((sum, pr) => sum + activeCommentCount(pr), 0),
+    unresolved: prs.reduce((sum, pr) => sum + activeUnresolvedCommentCount(pr), 0),
     coderabbit: prs.reduce((sum, pr) => sum + pr.coderabbitComments.filter((comment) => !isIgnored(itemKey("comment", comment.id))).length, 0),
     failures: prs.reduce((sum, pr) => sum + activeFailureCount(pr), 0),
     drafts: prs.filter((pr) => pr.draft && (state.showIgnored || !prIsIgnored(pr))).length,
@@ -199,6 +211,7 @@ function renderSummary(prs) {
     metric(totals.prs, "Open authored PRs"),
     metric(totals.drafts, "Draft PRs"),
     metric(totals.comments, "Current comments"),
+    metric(totals.unresolved, "Unresolved threads"),
     metric(totals.coderabbit, "CodeRabbit comments"),
     metric(totals.failures, "Failing checks/statuses"),
     metric(totals.ignored, "Ignored items"),
@@ -219,11 +232,12 @@ function renderList(prs) {
     const active = pr.number === state.selected ? " active" : "";
     const ignored = prIsIgnored(pr) ? " ignored" : "";
     const comments = activeCommentCount(pr);
+    const unresolved = activeUnresolvedCommentCount(pr);
     const failures = activeFailureCount(pr);
     const ignoredCount = pr.comments.filter((comment) => isIgnored(itemKey("comment", comment.id))).length
       + pr.failures.filter((failure) => isIgnored(failureKey(pr, failure))).length
       + (prIsIgnored(pr) ? 1 : 0);
-    const unresolvedChip = statusChip(comments === 0, "no unresolved", "unresolved");
+    const unresolvedChip = statusChip(unresolved === 0, "no unresolved", "unresolved");
     const presubmitChip = statusChip(failures === 0, "no presubmit", "presubmit");
     const draftChip = pr.draft ? `<span class="chip amber">Draft</span>` : "";
     const failureChip = failures ? `<span class="chip red">${failures} fail</span>` : "";

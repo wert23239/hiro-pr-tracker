@@ -92,7 +92,7 @@ function uniqueBy(items, keyFn) {
   });
 }
 
-function resolvedReviewCommentIds(pullRequestId) {
+function currentReviewCommentIds(pullRequestId) {
   const query = `
     query($pullRequestId: ID!, $after: String) {
       node(id: $pullRequestId) {
@@ -104,6 +104,7 @@ function resolvedReviewCommentIds(pullRequestId) {
             }
             nodes {
               isResolved
+              isOutdated
               comments(first: 100) {
                 nodes {
                   databaseId
@@ -115,7 +116,8 @@ function resolvedReviewCommentIds(pullRequestId) {
       }
     }
   `;
-  const ids = new Set();
+  const visible = new Set();
+  const unresolved = new Set();
   let after = "";
 
   do {
@@ -127,16 +129,19 @@ function resolvedReviewCommentIds(pullRequestId) {
     if (!threads) break;
 
     for (const thread of threads.nodes || []) {
-      if (!thread.isResolved) continue;
+      if (thread.isResolved || thread.isOutdated) continue;
       for (const comment of thread.comments?.nodes || []) {
-        if (comment.databaseId) ids.add(String(comment.databaseId));
+        if (!comment.databaseId) continue;
+        const id = String(comment.databaseId);
+        visible.add(id);
+        unresolved.add(id);
       }
     }
 
     after = threads.pageInfo?.hasNextPage ? threads.pageInfo.endCursor : "";
   } while (after);
 
-  return ids;
+  return { visible, unresolved };
 }
 
 function collectPr(pr) {
@@ -146,7 +151,7 @@ function collectPr(pr) {
   const reviews = getAll(`repos/${repoSlug}/pulls/${number}/reviews?per_page=100`) || [];
   const checkRuns = getAll(`repos/${repoSlug}/commits/${pr.head.sha}/check-runs?per_page=100`)?.check_runs || [];
   const combinedStatus = gh(["api", `repos/${repoSlug}/commits/${pr.head.sha}/status`]);
-  const resolvedCommentIds = resolvedReviewCommentIds(pr.node_id);
+  const currentReviewComments = currentReviewCommentIds(pr.node_id);
 
   const reviewBodies = reviews
     .filter((review) => review.body && review.body.trim())
@@ -157,8 +162,11 @@ function collectPr(pr) {
       ...issueComments.map((comment) => markdownComment(comment, "Conversation")),
       ...reviewBodies,
       ...reviewComments
-        .filter((comment) => !resolvedCommentIds.has(String(comment.id)))
-        .map((comment) => markdownComment(comment, "Code")),
+        .filter((comment) => currentReviewComments.visible.has(String(comment.id)))
+        .map((comment) => ({
+          ...markdownComment(comment, "Code"),
+          unresolved: currentReviewComments.unresolved.has(String(comment.id)),
+        })),
     ].filter((comment) => comment.body.trim()),
     (comment) => comment.id
   ).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
@@ -203,6 +211,7 @@ function collectPr(pr) {
     createdAt: pr.created_at,
     updatedAt: pr.updated_at,
     comments,
+    unresolvedComments: comments.filter((comment) => comment.unresolved),
     coderabbitComments: comments.filter((comment) => comment.source === "CodeRabbit"),
     nonCoderabbitComments: comments.filter((comment) => comment.source !== "CodeRabbit"),
     failures: [...failedRuns, ...statuses],
