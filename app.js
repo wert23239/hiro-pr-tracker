@@ -163,10 +163,12 @@ function renderSummary(prs) {
     comments: prs.reduce((sum, pr) => sum + activeCommentCount(pr), 0),
     coderabbit: prs.reduce((sum, pr) => sum + pr.coderabbitComments.filter((comment) => !isIgnored(itemKey("comment", comment.id))).length, 0),
     failures: prs.reduce((sum, pr) => sum + activeFailureCount(pr), 0),
+    drafts: prs.filter((pr) => pr.draft && (state.showIgnored || !prIsIgnored(pr))).length,
     ignored: state.ignored.size,
   };
   els.summary.innerHTML = [
     metric(totals.prs, "Open authored PRs"),
+    metric(totals.drafts, "Draft PRs"),
     metric(totals.comments, "Current comments"),
     metric(totals.coderabbit, "CodeRabbit comments"),
     metric(totals.failures, "Failing checks/statuses"),
@@ -192,6 +194,7 @@ function renderList(prs) {
     const ignoredCount = pr.comments.filter((comment) => isIgnored(itemKey("comment", comment.id))).length
       + pr.failures.filter((failure) => isIgnored(failureKey(pr, failure))).length
       + (prIsIgnored(pr) ? 1 : 0);
+    const draftChip = pr.draft ? `<span class="chip amber">Draft</span>` : "";
     const failureChip = failures ? `<span class="chip red">${failures} fail</span>` : "";
     const ignoredChip = ignoredCount ? `<span class="chip muted">${ignoredCount} ignored</span>` : "";
     return `
@@ -199,6 +202,7 @@ function renderList(prs) {
         <h2>${escapeHtml(pr.head)}</h2>
         <div class="chips">
           <span class="chip blue">${comments} comments</span>
+          ${draftChip}
           ${failureChip}
           ${ignoredChip}
           <span class="chip">#${pr.number}</span>
@@ -220,7 +224,7 @@ function renderDetail(prs) {
   els.detail.innerHTML = `
     <div class="detail-head">
       <div class="detail-title">
-        <h2>#${pr.number} ${escapeHtml(pr.title)}</h2>
+        <h2>#${pr.number} ${escapeHtml(pr.title)}${pr.draft ? ` <span class="chip amber">Draft</span>` : ""}</h2>
         <div class="pr-meta">${escapeHtml(pr.head)} -> ${escapeHtml(pr.base)} - ${escapeHtml(pr.headSha.slice(0, 7))} - <a href="${escapeHtml(pr.url)}" target="_blank" rel="noreferrer">Open GitHub PR</a></div>
       </div>
       <div class="detail-actions">
