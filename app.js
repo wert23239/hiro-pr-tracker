@@ -5,6 +5,8 @@ const state = {
   view: "all",
   onlyActionable: false,
   showIgnored: false,
+  loading: false,
+  autoReloadTimer: null,
   viewer: localStorage.getItem("hiro-pr-tracker-viewer") || "Alex",
   ignored: new Set(),
   ignoreMeta: new Map(),
@@ -25,6 +27,7 @@ const els = {
   actionable: document.querySelector("#only-actionable"),
   showIgnored: document.querySelector("#show-ignored"),
   reload: document.querySelector("#refresh-data"),
+  reloadStatus: document.querySelector("#reload-status"),
   loginForm: document.querySelector("#login-form"),
   password: document.querySelector("#password"),
   loginError: document.querySelector("#login-error"),
@@ -55,6 +58,24 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return fmt.format(date);
+}
+
+function setReloading(loading) {
+  state.loading = loading;
+  els.reload.disabled = loading;
+  els.reload.textContent = loading ? "Loading..." : "Reload";
+}
+
+function setReloadStatus(message) {
+  if (els.reloadStatus) els.reloadStatus.textContent = message;
+}
+
+function flashUpdated() {
+  document.body.classList.remove("data-flash");
+  window.requestAnimationFrame(() => {
+    document.body.classList.add("data-flash");
+    window.setTimeout(() => document.body.classList.remove("data-flash"), 900);
+  });
 }
 
 function copyButton(payload) {
@@ -404,15 +425,26 @@ async function setIgnored({ key, type, prNumber, ignored }) {
   }
 }
 
-async function loadData(password) {
-  const [response] = await Promise.all([
-    fetch(`data/prs.enc.json?ts=${Date.now()}`),
-    loadIgnores(),
-  ]);
-  if (!response.ok) throw new Error(`Could not load encrypted PR data: ${response.status}`);
-  state.data = await decryptData(await response.json(), password);
-  state.selected = state.data.prs[0]?.number || null;
-  render();
+async function loadData(password, { flash = false } = {}) {
+  if (state.loading) return;
+  const previousSelected = state.selected;
+  setReloading(true);
+  try {
+    const [response] = await Promise.all([
+      fetch(`data/prs.enc.json?ts=${Date.now()}`),
+      loadIgnores(),
+    ]);
+    if (!response.ok) throw new Error(`Could not load encrypted PR data: ${response.status}`);
+    state.data = await decryptData(await response.json(), password);
+    state.selected = state.data.prs.some((pr) => pr.number === previousSelected)
+      ? previousSelected
+      : state.data.prs[0]?.number || null;
+    render();
+    setReloadStatus(`Updated ${formatDate(state.data.generatedAt)}`);
+    if (flash) flashUpdated();
+  } finally {
+    setReloading(false);
+  }
 }
 
 async function unlock(password) {
@@ -420,6 +452,19 @@ async function unlock(password) {
   await loadData(password);
   sessionStorage.setItem("hiro-pr-tracker-password", password);
   document.body.classList.remove("locked");
+  startAutoReload();
+}
+
+function startAutoReload() {
+  if (state.autoReloadTimer) window.clearInterval(state.autoReloadTimer);
+  state.autoReloadTimer = window.setInterval(() => {
+    const password = sessionStorage.getItem("hiro-pr-tracker-password");
+    if (!password) return;
+    loadData(password, { flash: true }).catch((error) => {
+      setReloadStatus(`Reload failed: ${error.message}`);
+      setReloading(false);
+    });
+  }, 60000);
 }
 
 els.viewer.value = state.viewer;
@@ -452,8 +497,10 @@ els.showIgnored.addEventListener("change", (event) => {
 els.reload.addEventListener("click", () => {
   const password = sessionStorage.getItem("hiro-pr-tracker-password") || els.password.value;
   if (!password) return;
-  loadData(password).catch((error) => {
+  loadData(password, { flash: true }).catch((error) => {
     els.detail.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    setReloadStatus(`Reload failed: ${error.message}`);
+    setReloading(false);
   });
 });
 

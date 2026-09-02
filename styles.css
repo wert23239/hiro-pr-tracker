@@ -157,6 +157,13 @@ button:hover,
   border-color: #aeb9b0;
 }
 
+.reload-status {
+  color: #c9d8ce;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 120px;
+}
+
 main {
   margin: 0 auto;
   max-width: 1500px;
@@ -337,6 +344,27 @@ main {
   border-radius: 8px;
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+
+body.data-flash .summary,
+body.data-flash .pr-list,
+body.data-flash .detail {
+  animation: dataFlash 850ms ease-out;
+}
+
+@keyframes dataFlash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(31, 111, 74, 0);
+    filter: brightness(1);
+  }
+  18% {
+    box-shadow: 0 0 0 4px rgba(31, 111, 74, 0.18);
+    filter: brightness(1.035);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(31, 111, 74, 0);
+    filter: brightness(1);
+  }
 }
 
 .detail-head {
