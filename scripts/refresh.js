@@ -146,21 +146,13 @@ function currentReviewCommentIds(pullRequestId) {
 
 function collectPr(pr) {
   const number = pr.number;
-  const issueComments = getAll(`repos/${repoSlug}/issues/${number}/comments?per_page=100`) || [];
   const reviewComments = getAll(`repos/${repoSlug}/pulls/${number}/comments?per_page=100`) || [];
-  const reviews = getAll(`repos/${repoSlug}/pulls/${number}/reviews?per_page=100`) || [];
   const checkRuns = getAll(`repos/${repoSlug}/commits/${pr.head.sha}/check-runs?per_page=100`)?.check_runs || [];
   const combinedStatus = gh(["api", `repos/${repoSlug}/commits/${pr.head.sha}/status`]);
   const currentReviewComments = currentReviewCommentIds(pr.node_id);
 
-  const reviewBodies = reviews
-    .filter((review) => review.body && review.body.trim())
-    .map((review) => markdownComment(review, "Review"));
-
   const comments = uniqueBy(
     [
-      ...issueComments.map((comment) => markdownComment(comment, "Conversation")),
-      ...reviewBodies,
       ...reviewComments
         .filter((comment) => currentReviewComments.visible.has(String(comment.id)))
         .map((comment) => ({
