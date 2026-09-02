@@ -1,0 +1,13 @@
+{
+  "name": "hiro-pr-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local Hiro PR tracker for authored PRs, comments, and presubmit failures.",
+  "scripts": {
+    "build": "npm run refresh && npm run encrypt",
+    "encrypt": "node scripts/encrypt-data.js",
+    "refresh": "node scripts/refresh.js",
+    "serve:auth": "node server.js",
+    "serve": "npx http-server . -p 8092 -c-1"
+  }
+}

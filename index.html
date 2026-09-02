@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hiro PR Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="locked">
+    <section class="login-panel" id="login-panel" aria-label="Password required">
+      <form id="login-form" class="login-box">
+        <p class="eyebrow">KouperHealth/hiro</p>
+        <h1>Hiro PR Tracker</h1>
+        <label>
+          Password
+          <input id="password" type="password" autocomplete="current-password" autofocus />
+        </label>
+        <button type="submit">Unlock</button>
+        <p class="login-error" id="login-error" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">KouperHealth/hiro</p>
+        <h1>Hiro PR Tracker</h1>
+      </div>
+      <div class="toolbar">
+        <button class="icon-button" id="refresh-data" title="Reload generated data" aria-label="Reload generated data">Reload</button>
+        <a class="button" href="data/prs.enc.json" download>Download encrypted data</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="summary" id="summary" aria-live="polite"></section>
+      <section class="controls" aria-label="Filters">
+        <label>
+          Search
+          <input id="search" type="search" placeholder="PR, file, comment, failure..." />
+        </label>
+        <label>
+          View
+          <select id="view-filter">
+            <option value="all">All comments</option>
+            <option value="coderabbit">CodeRabbit only</option>
+            <option value="non-coderabbit">Non-CodeRabbit only</option>
+            <option value="failures">Failures only</option>
+          </select>
+        </label>
+        <label>
+          User
+          <select id="viewer">
+            <option value="Alex">Alex</option>
+            <option value="TJ">TJ</option>
+          </select>
+        </label>
+        <label class="toggle">
+          <input id="only-actionable" type="checkbox" />
+          <span>Only PRs with comments or failures</span>
+        </label>
+        <label class="toggle">
+          <input id="show-ignored" type="checkbox" />
+          <span>Show ignored</span>
+        </label>
+      </section>
+
+      <section class="layout">
+        <nav class="pr-list" id="pr-list" aria-label="Pull requests"></nav>
+        <article class="detail" id="detail"></article>
+      </section>
+    </main>
+
+    <template id="copy-button-template">
+      <button class="copy-button" type="button">Copy</button>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
