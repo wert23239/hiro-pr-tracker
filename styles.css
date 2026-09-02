@@ -320,6 +320,12 @@ main {
   color: var(--red);
 }
 
+.chip.green {
+  background: #eaf7ef;
+  border-color: #badfc7;
+  color: var(--green);
+}
+
 .chip.amber {
   background: #fff5e6;
   border-color: #edd2a6;

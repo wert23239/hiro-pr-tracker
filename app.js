@@ -120,6 +120,12 @@ function activeFailureCount(pr) {
   return activeFailures(pr).length;
 }
 
+function statusChip(ok, okLabel, badLabel) {
+  const symbol = ok ? "&#10003;" : "X";
+  const tone = ok ? "green" : "red";
+  return `<span class="chip ${tone}">${symbol} ${escapeHtml(ok ? okLabel : badLabel)}</span>`;
+}
+
 function combinedCopy(pr) {
   const coderabbitComments = visibleItems(pr.coderabbitComments, (comment) => itemKey("comment", comment.id));
   const nonCoderabbitComments = visibleItems(pr.nonCoderabbitComments, (comment) => itemKey("comment", comment.id));
@@ -217,6 +223,8 @@ function renderList(prs) {
     const ignoredCount = pr.comments.filter((comment) => isIgnored(itemKey("comment", comment.id))).length
       + pr.failures.filter((failure) => isIgnored(failureKey(pr, failure))).length
       + (prIsIgnored(pr) ? 1 : 0);
+    const unresolvedChip = statusChip(comments === 0, "no unresolved", "unresolved");
+    const presubmitChip = statusChip(failures === 0, "no presubmit", "presubmit");
     const draftChip = pr.draft ? `<span class="chip amber">Draft</span>` : "";
     const failureChip = failures ? `<span class="chip red">${failures} fail</span>` : "";
     const ignoredChip = ignoredCount ? `<span class="chip muted">${ignoredCount} ignored</span>` : "";
@@ -225,6 +233,8 @@ function renderList(prs) {
         <h2>${escapeHtml(pr.head)}</h2>
         <div class="chips">
           <span class="chip blue">${comments} comments</span>
+          ${unresolvedChip}
+          ${presubmitChip}
           ${draftChip}
           ${failureChip}
           ${ignoredChip}
