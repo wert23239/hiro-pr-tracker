@@ -34,6 +34,14 @@ function ghText(args) {
   }
 }
 
+function ghGraphql(query, fields = {}) {
+  const args = ["api", "graphql", "-f", `query=${query}`];
+  for (const [key, value] of Object.entries(fields)) {
+    args.push("-F", `${key}=${value}`);
+  }
+  return gh(args);
+}
+
 function getAll(endpoint) {
   return gh(["api", "--paginate", endpoint]);
 }
@@ -84,6 +92,53 @@ function uniqueBy(items, keyFn) {
   });
 }
 
+function resolvedReviewCommentIds(pullRequestId) {
+  const query = `
+    query($pullRequestId: ID!, $after: String) {
+      node(id: $pullRequestId) {
+        ... on PullRequest {
+          reviewThreads(first: 100, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              isResolved
+              comments(first: 100) {
+                nodes {
+                  databaseId
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+  const ids = new Set();
+  let after = "";
+
+  do {
+    const result = ghGraphql(query, {
+      pullRequestId,
+      after,
+    });
+    const threads = result?.data?.node?.reviewThreads;
+    if (!threads) break;
+
+    for (const thread of threads.nodes || []) {
+      if (!thread.isResolved) continue;
+      for (const comment of thread.comments?.nodes || []) {
+        if (comment.databaseId) ids.add(String(comment.databaseId));
+      }
+    }
+
+    after = threads.pageInfo?.hasNextPage ? threads.pageInfo.endCursor : "";
+  } while (after);
+
+  return ids;
+}
+
 function collectPr(pr) {
   const number = pr.number;
   const issueComments = getAll(`repos/${repoSlug}/issues/${number}/comments?per_page=100`) || [];
@@ -91,6 +146,7 @@ function collectPr(pr) {
   const reviews = getAll(`repos/${repoSlug}/pulls/${number}/reviews?per_page=100`) || [];
   const checkRuns = getAll(`repos/${repoSlug}/commits/${pr.head.sha}/check-runs?per_page=100`)?.check_runs || [];
   const combinedStatus = gh(["api", `repos/${repoSlug}/commits/${pr.head.sha}/status`]);
+  const resolvedCommentIds = resolvedReviewCommentIds(pr.node_id);
 
   const reviewBodies = reviews
     .filter((review) => review.body && review.body.trim())
@@ -100,7 +156,9 @@ function collectPr(pr) {
     [
       ...issueComments.map((comment) => markdownComment(comment, "Conversation")),
       ...reviewBodies,
-      ...reviewComments.map((comment) => markdownComment(comment, "Code")),
+      ...reviewComments
+        .filter((comment) => !resolvedCommentIds.has(String(comment.id)))
+        .map((comment) => markdownComment(comment, "Code")),
     ].filter((comment) => comment.body.trim()),
     (comment) => comment.id
   ).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
