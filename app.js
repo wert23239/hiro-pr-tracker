@@ -240,7 +240,7 @@ function renderList(prs) {
     const unresolvedChip = statusChip(unresolved === 0, "no unresolved", "unresolved");
     const presubmitChip = statusChip(failures === 0, "no presubmit", "presubmit");
     const draftChip = pr.draft ? `<span class="chip amber">Draft</span>` : "";
-    const reviewChip = pr.hasReview ? `<span class="chip purple">Review</span>` : "";
+    const approvedChip = pr.hasApprovedReview ? `<span class="chip purple">Approved</span>` : "";
     const failureChip = failures ? `<span class="chip red">${failures} fail</span>` : "";
     const ignoredChip = ignoredCount ? `<span class="chip muted">${ignoredCount} ignored</span>` : "";
     return `
@@ -251,7 +251,7 @@ function renderList(prs) {
           ${unresolvedChip}
           ${presubmitChip}
           ${draftChip}
-          ${reviewChip}
+          ${approvedChip}
           ${failureChip}
           ${ignoredChip}
           <span class="chip">#${pr.number}</span>

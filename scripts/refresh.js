@@ -217,7 +217,7 @@ function collectPr(pr) {
     updatedAt: pr.updated_at,
     comments,
     reviews: reviews.map(reviewSummary),
-    hasReview: reviews.length > 0,
+    hasApprovedReview: reviews.some((review) => review.state === "APPROVED"),
     unresolvedComments: comments.filter((comment) => comment.unresolved),
     coderabbitComments: comments.filter((comment) => comment.source === "CodeRabbit"),
     nonCoderabbitComments: comments.filter((comment) => comment.source !== "CodeRabbit"),
