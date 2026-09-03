@@ -82,6 +82,18 @@ function failureLog(run) {
   return ghText(["run", "view", match[1], "--repo", repoSlug, "--log-failed"]);
 }
 
+function reviewSummary(review) {
+  const authorLogin = review.user?.login || "unknown";
+  return {
+    id: String(review.id || review.node_id || `${authorLogin}-${review.submitted_at || ""}`),
+    state: review.state || "",
+    author: authorLogin,
+    source: classifyAuthor(authorLogin),
+    submittedAt: review.submitted_at || "",
+    url: review.html_url || "",
+  };
+}
+
 function uniqueBy(items, keyFn) {
   const seen = new Set();
   return items.filter((item) => {
@@ -147,6 +159,7 @@ function currentReviewCommentIds(pullRequestId) {
 function collectPr(pr) {
   const number = pr.number;
   const reviewComments = getAll(`repos/${repoSlug}/pulls/${number}/comments?per_page=100`) || [];
+  const reviews = getAll(`repos/${repoSlug}/pulls/${number}/reviews?per_page=100`) || [];
   const checkRuns = getAll(`repos/${repoSlug}/commits/${pr.head.sha}/check-runs?per_page=100`)?.check_runs || [];
   const combinedStatus = gh(["api", `repos/${repoSlug}/commits/${pr.head.sha}/status`]);
   const currentReviewComments = currentReviewCommentIds(pr.node_id);
@@ -203,6 +216,8 @@ function collectPr(pr) {
     createdAt: pr.created_at,
     updatedAt: pr.updated_at,
     comments,
+    reviews: reviews.map(reviewSummary),
+    hasReview: reviews.length > 0,
     unresolvedComments: comments.filter((comment) => comment.unresolved),
     coderabbitComments: comments.filter((comment) => comment.source === "CodeRabbit"),
     nonCoderabbitComments: comments.filter((comment) => comment.source !== "CodeRabbit"),

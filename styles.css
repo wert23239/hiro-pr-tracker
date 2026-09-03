@@ -360,6 +360,12 @@ main {
   color: var(--blue);
 }
 
+.chip.purple {
+  background: #f4f0ff;
+  border-color: #d9cdf5;
+  color: #64519b;
+}
+
 .chip.muted {
   background: #f4f5f3;
   border-color: #d7ddd7;
