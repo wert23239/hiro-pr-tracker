@@ -213,6 +213,8 @@ function collectPr(pr) {
     base: pr.base?.ref || "",
     head: pr.head?.ref || "",
     headSha: pr.head?.sha || "",
+    baseRepo: pr.base?.repo?.full_name || "",
+    headRepo: pr.head?.repo?.full_name || "",
     createdAt: pr.created_at,
     updatedAt: pr.updated_at,
     comments,

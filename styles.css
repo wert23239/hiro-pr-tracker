@@ -531,3 +531,15 @@ pre {
     justify-content: flex-start;
   }
 }
+
+.stack-group { background: #eef3ef; border: 1px solid #c9d9ce; border-radius: 10px; padding: 10px; display: grid; gap: 8px; }
+.stack-heading { color: var(--green); font-weight: 800; font-size: 13px; }
+.stack-heading span { display: block; color: var(--muted); font-weight: 500; font-size: 11px; }
+.stack-group .pr-card { margin-left: calc(var(--stack-depth) * 8px); width: calc(100% - var(--stack-depth) * 8px); }
+.stack-relation { color: var(--green); font-size: 12px; margin: -3px 0 10px; }
+.stack-context { padding: 16px; background: #f2f7f3; border-bottom: 1px solid var(--line); }
+.stack-context .chips { margin-top: 8px; }
+.stack-context button { font-size: 12px; overflow-wrap: anywhere; text-align: left; max-width: 100%; }
+.stack-context button[aria-current] { border-color: var(--green); color: var(--green); }
+.reload-status { max-width: 430px; }
+@media (prefers-reduced-motion: reduce) { body.data-flash .summary, body.data-flash .pr-list, body.data-flash .detail { animation: none; } }

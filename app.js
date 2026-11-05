@@ -11,6 +11,7 @@ const state = {
   viewer: localStorage.getItem("hiro-pr-tracker-viewer") || "Alex",
   ignored: new Set(),
   ignoreMeta: new Map(),
+  lastChecked: null,
 };
 
 const supabase = {
@@ -228,7 +229,12 @@ function renderList(prs) {
     return;
   }
   if (!state.selected || !prs.some((pr) => pr.number === state.selected)) state.selected = prs[0].number;
-  els.list.innerHTML = prs.map((pr) => {
+  const visible = new Set(prs.map(pr => pr.number));
+  els.list.innerHTML = buildStacks(state.data.prs).map(group => {
+    const members = group.members.filter(item => visible.has(item.pr.number));
+    if (!members.length) return "";
+    const stacked = group.members.length > 1;
+    const cards = members.map(({ pr, depth, parent }) => {
     const active = pr.number === state.selected ? " active" : "";
     const ignored = prIsIgnored(pr) ? " ignored" : "";
     const comments = activeCommentCount(pr);
@@ -244,8 +250,9 @@ function renderList(prs) {
     const failureChip = failures ? `<span class="chip red">${failures} fail</span>` : "";
     const ignoredChip = ignoredCount ? `<span class="chip muted">${ignoredCount} ignored</span>` : "";
     return `
-      <button class="pr-card${active}${ignored}" type="button" data-pr="${pr.number}">
+      <button class="pr-card${active}${ignored}" style="--stack-depth:${Math.min(depth, 3)}" type="button" data-pr="${pr.number}">
         <h2>${escapeHtml(pr.head)}</h2>
+        ${stacked ? `<div class="stack-relation">${parent ? `↳ Depends on #${parent.number}` : "Stack base · merge first"}</div>` : ""}
         <div class="chips">
           <span class="chip blue">${comments} comments</span>
           ${unresolvedChip}
@@ -258,6 +265,8 @@ function renderList(prs) {
         </div>
       </button>
     `;
+    }).join("");
+    return stacked ? `<section class="stack-group" aria-label="PR stack based on #${group.root.number}"><div class="stack-heading">Stack · ${group.members.length} PRs <span>base → dependent</span></div>${cards}</section>` : cards;
   }).join("");
 }
 
@@ -281,10 +290,17 @@ function renderDetail(prs) {
         ${copyButton(combinedCopy(pr))}
       </div>
     </div>
+    ${renderStackContext(pr)}
     ${showFailures ? renderFailures(pr, visibleItems(pr.failures, (failure) => failureKey(pr, failure))) : ""}
     ${renderComments("CodeRabbit", comments.filter((comment) => comment.source === "CodeRabbit"))}
     ${renderComments("Other comments", comments.filter((comment) => comment.source !== "CodeRabbit"))}
   `;
+}
+
+function renderStackContext(pr) {
+  const group = buildStacks(state.data.prs).find(group => group.members.some(item => item.pr.number === pr.number));
+  if (!group || group.members.length < 2) return "";
+  return `<section class="stack-context"><strong>Stack · merge base first</strong><div class="chips">${group.members.map(item => `<button type="button" data-pr="${item.pr.number}" ${item.pr.number === pr.number ? 'aria-current="true"' : ''}>${item.parent ? '↳ ' : ''}#${item.pr.number} ${escapeHtml(item.pr.head)}</button>`).join("")}</div></section>`;
 }
 
 function renderIgnoreButton(type, key, prNumber) {
@@ -345,7 +361,7 @@ function render() {
 }
 
 async function supabaseRequest(path, options = {}) {
-  const response = await fetch(`${supabase.url}/rest/v1/${path}`, {
+  const response = await fetchWithTimeout(`${supabase.url}/rest/v1/${path}`, {
     ...options,
     headers: {
       apikey: supabase.anonKey,
@@ -453,23 +469,50 @@ async function setIgnored({ key, type, prNumber, ignored }) {
   }
 }
 
+async function fetchWithTimeout(url, options = {}) {
+  return fetch(url, { ...options, cache: "no-store", signal: AbortSignal.timeout(20000) });
+}
+
+async function fetchSnapshot() {
+  // Raw serves the encrypted commit directly, without waiting for Pages deployment.
+  const urls = [
+    `https://raw.githubusercontent.com/wert23239/hiro-pr-tracker/main/data/prs.enc.json?ts=${Date.now()}`,
+    `data/prs.enc.json?ts=${Date.now()}`,
+  ];
+  for (const url of urls) {
+    try {
+      const response = await fetchWithTimeout(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      if (url === urls.at(-1)) throw error;
+    }
+  }
+}
+
 async function loadData(password, { flash = false } = {}) {
   if (state.loading) return;
   const previousSelected = state.selected;
   setReloading(true);
+  setReloadStatus("Checking latest published GitHub snapshot…");
   try {
-    const [response] = await Promise.all([
-      fetch(`data/prs.enc.json?ts=${Date.now()}`),
-      loadIgnores(),
+    const [payload, ignores] = await Promise.all([
+      fetchSnapshot(),
+      loadIgnores().then(() => null).catch(() => "Ignore sync unavailable; kept previous settings."),
     ]);
-    if (!response.ok) throw new Error(`Could not load encrypted PR data: ${response.status}`);
-    state.data = await decryptData(await response.json(), password);
+    const next = await decryptData(payload, password);
+    const changed = !state.data || JSON.stringify({ ...next, generatedAt: null }) !== JSON.stringify({ ...state.data, generatedAt: null });
+    state.data = next;
+    state.lastChecked = new Date();
     state.selected = state.data.prs.some((pr) => pr.number === previousSelected)
-      ? previousSelected
-      : state.data.prs[0]?.number || null;
+      ? previousSelected : state.data.prs[0]?.number || null;
     render();
-    setReloadStatus(`Updated ${formatDate(state.data.generatedAt)}`);
+    const age = Date.now() - new Date(next.generatedAt).getTime();
+    setReloadStatus(`Checked ${state.lastChecked.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })} · ${changed ? "Updated" : "No PR changes"} · Snapshot ${formatDate(next.generatedAt)}${age > 15 * 60000 ? " · Snapshot may be stale; publisher runs on Mac" : ""}${ignores ? ` · ${ignores}` : ""}`);
     if (flash) flashUpdated();
+  } catch (error) {
+    setReloadStatus(`Reload failed: ${error.message}. Showing previous data; retry available.`);
+    throw error;
   } finally {
     setReloading(false);
   }
@@ -547,8 +590,7 @@ els.reload.addEventListener("click", () => {
   const password = sessionStorage.getItem("hiro-pr-tracker-password") || els.password.value;
   if (!password) return;
   loadData(password, { flash: true }).catch((error) => {
-    els.detail.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
-    setReloadStatus(`Reload failed: ${error.message}`);
+    setReloadStatus(`Reload failed: ${error.message}. Showing previous data; retry available.`);
     setReloading(false);
   });
 });
@@ -609,3 +651,10 @@ const savedPassword = sessionStorage.getItem("hiro-pr-tracker-password");
 if (savedPassword) {
   unlock(savedPassword).catch(() => sessionStorage.removeItem("hiro-pr-tracker-password"));
 }
+
+// Browsers throttle timers in background tabs. Catch up when returning to the tracker.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !state.autoReload || !state.data) return;
+  const password = sessionStorage.getItem("hiro-pr-tracker-password");
+  if (password && Date.now() - state.lastChecked > 60000) loadData(password, { flash: true }).catch(() => {});
+});
