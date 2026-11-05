@@ -234,6 +234,7 @@ function renderList(prs) {
     const members = group.members.filter(item => visible.has(item.pr.number));
     if (!members.length) return "";
     const stacked = group.members.length > 1;
+    const notStacked = group.notStacked;
     const cards = members.map(({ pr, depth, parent }) => {
     const active = pr.number === state.selected ? " active" : "";
     const ignored = prIsIgnored(pr) ? " ignored" : "";
@@ -252,7 +253,7 @@ function renderList(prs) {
     return `
       <button class="pr-card${active}${ignored}" style="--stack-depth:${Math.min(depth, 3)}" type="button" data-pr="${pr.number}">
         <h2>${escapeHtml(pr.head)}</h2>
-        ${stacked ? `<div class="stack-relation">${parent ? `↳ Depends on #${parent.number}` : "Stack base · merge first"}</div>` : ""}
+        ${stacked ? `<div class="stack-relation">${parent ? `↳ ${notStacked ? "Branched from" : "Depends on"} #${parent.number}` : notStacked ? "Branch base · not stacked" : "Stack base · merge first"}</div>` : ""}
         <div class="chips">
           <span class="chip blue">${comments} comments</span>
           ${unresolvedChip}
@@ -266,7 +267,7 @@ function renderList(prs) {
       </button>
     `;
     }).join("");
-    return stacked ? `<section class="stack-group" aria-label="PR stack based on #${group.root.number}"><div class="stack-heading">Stack · ${group.members.length} PRs <span>base → dependent</span></div>${cards}</section>` : cards;
+    return stacked ? `<section class="stack-group" aria-label="${notStacked ? "Branch relationship" : "PR stack"} based on #${group.root.number}"><div class="stack-heading">${notStacked ? "Not stacked" : "Stack"} · ${group.members.length} PRs <span>${notStacked ? "branch relationship only" : "base → dependent"}</span></div>${cards}</section>` : cards;
   }).join("");
 }
 
@@ -300,7 +301,7 @@ function renderDetail(prs) {
 function renderStackContext(pr) {
   const group = buildStacks(state.data.prs).find(group => group.members.some(item => item.pr.number === pr.number));
   if (!group || group.members.length < 2) return "";
-  return `<section class="stack-context"><strong>Stack · merge base first</strong><div class="chips">${group.members.map(item => `<button type="button" data-pr="${item.pr.number}" ${item.pr.number === pr.number ? 'aria-current="true"' : ''}>${item.parent ? '↳ ' : ''}#${item.pr.number} ${escapeHtml(item.pr.head)}</button>`).join("")}</div></section>`;
+  return `<section class="stack-context"><strong>${group.notStacked ? "Not stacked · branch relationship only" : "Stack · merge base first"}</strong><div class="chips">${group.members.map(item => `<button type="button" data-pr="${item.pr.number}" ${item.pr.number === pr.number ? 'aria-current="true"' : ''}>${item.parent ? '↳ ' : ''}#${item.pr.number} ${escapeHtml(item.pr.head)}</button>`).join("")}</div></section>`;
 }
 
 function renderIgnoreButton(type, key, prNumber) {

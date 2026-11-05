@@ -1,5 +1,7 @@
-/* Branch dependencies, not shared targets or similar names, define a stack. */
+/* Base/head matches identify branch relationships, not necessarily intentional stacks. */
 (function (root) {
+  // Explicit user correction: this branch relationship is not an intentional stack.
+  const notStacked = new Set(["4038:4028"]);
   function buildStacks(prs) {
     const parent = new Map();
     for (const pr of prs) {
@@ -32,6 +34,7 @@
       }
       visit(group.root, 0);
       group.members = ordered;
+      group.notStacked = ordered.some(item => item.parent && notStacked.has(`${item.pr.number}:${item.parent.number}`));
     }
     return [...groups.values()];
   }
